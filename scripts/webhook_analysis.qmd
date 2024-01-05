@@ -1,0 +1,88 @@
+---
+title: "Webhook Files"
+author: "Joe Shaw"
+date: today
+date-format: "DD/MM/YYYY"
+format: pdf
+editor: visual
+---
+
+```{r}
+#| label: packages
+#| include: FALSE
+
+library(tidyverse)
+library(here)
+
+```
+
+```{r}
+#| label: read-data
+#| echo: FALSE
+
+all_files <- list.files(path = here::here("data/"),
+                        pattern = "*.txt",
+                        full.names = TRUE)
+
+process_file <- function(file_path) {
+  
+  webhook_regex <- regex(
+    r"[
+    GET:\shttp://localhost:1200/     # Doesn't change
+    (.+)                             # Bit we want
+    \?
+    ]", 
+    comments = TRUE)
+  
+  file_regex <- regex(
+    r"[
+    .+
+    (\d{4}-\d{2}-\d{2}-\d{2}-\d{2}) # timestamp
+    .+
+    .txt
+    ]",
+    comments = TRUE)
+  
+  file_string <- read_file(file_path)
+
+  output <- data.frame(
+    filename = file_path,
+    date = as_datetime(str_extract(string = file_path, pattern = file_regex, group = 1),
+                format = "%Y-%m-%d-%H-%M"),
+    section = str_extract(string = file_string, pattern = webhook_regex, group = 1))
+  
+  return(output)
+
+}
+
+webhook_df <- all_files |> 
+  map(\(all_files) process_file(
+    file_path = all_files
+  )) |>
+  list_rbind()
+
+```
+
+This analysis looks at **`r length(all_files)`** webhook files.
+
+There appear to be 3 different types of webhook files that get created. "testExport" appears to have a peak just after 9am.
+
+```{r}
+#| label: over-time
+#| echo: FALSE
+
+plot <- webhook_df |> 
+  group_by(date, section) |> 
+  summarise(total_files = n(), .groups = "drop_last") |> 
+  ggplot(aes(x = date, y = total_files)) +
+  geom_col(aes(fill = section)) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank()) +
+  labs(x = "Time file created (by minute)",
+       y = "Number of files created",
+       title = "Webhook file generation over time")
+
+plot
+
+```
