@@ -30,7 +30,12 @@ process_file <- function(file_path) {
     r"[
     GET:\shttp://localhost:1200/     # Doesn't change
     (.+)                             # Bit we want
-    \?
+    \?                               # Question mark is end of section
+    model=
+    (.+)                             # Model text                            
+    &id=
+    (\d{6})                          # Referral ID
+    \n
     ]", 
     comments = TRUE)
   
@@ -49,7 +54,9 @@ process_file <- function(file_path) {
     filename = file_path,
     date = as_datetime(str_extract(string = file_path, pattern = file_regex, group = 1),
                 format = "%Y-%m-%d-%H-%M"),
-    section = str_extract(string = file_string, pattern = webhook_regex, group = 1))
+    section = str_extract(string = file_string, pattern = webhook_regex, group = 1),
+    model = str_extract(string = file_string, pattern = webhook_regex, group = 2),
+    referral_id = str_extract(string = file_string, pattern = webhook_regex, group = 3))
   
   return(output)
 
@@ -62,27 +69,81 @@ webhook_df <- all_files |>
   list_rbind()
 
 ```
+## Sample IDs
+
+After extracting the sample ID from each file, we can look at the frequency of files per sample.
 
 This analysis looks at **`r length(all_files)`** webhook files.
 
-There appear to be 3 different types of webhook files that get created. "testExport" appears to have a peak just after 9am.
-
 ```{r}
-#| label: over-time
+#| label: files-per-sample
 #| echo: FALSE
 
-plot <- webhook_df |> 
-  group_by(date, section) |> 
-  summarise(total_files = n(), .groups = "drop_last") |> 
-  ggplot(aes(x = date, y = total_files)) +
-  geom_col(aes(fill = section)) +
-  theme_bw() +
-  theme(legend.position = "bottom",
-        legend.title = element_blank()) +
-  labs(x = "Time file created (by minute)",
-       y = "Number of files created",
-       title = "Webhook file generation over time")
+file_sample_summary <- webhook_df |> 
+  group_by(referral_id) |> 
+  summarise(files_per_sample = n(), .groups = "drop_last") 
 
-plot
+ggplot(file_sample_summary, aes(x = files_per_sample, y = )) +
+  geom_histogram(binwidth = 1) +
+  theme_bw() +
+  labs(x = "Number of files per sample",
+       y = "Number of samples",
+       title = "The majority of samples have only 1 file generated")
 
 ```
+
+{{< pagebreak >}}
+
+Here's an example of the log for a sample with 12 files. 
+
+```{r}
+#| label: big-hitter
+#| echo: FALSE
+
+big_hitter <- webhook_df |> 
+  filter(referral_id == 449772) |>
+  arrange(date) |>  
+  select(-c(model, filename)) |>  
+  relocate(referral_id)
+
+knitr::kable(big_hitter)
+
+```
+
+{{< pagebreak >}}
+
+## Model
+
+I have also extracted the "model" section from the file, which appears to have 3 different values.
+
+```{r}
+#| label: models
+#| echo: FALSE
+
+webhook_df |> 
+  group_by(model) |> 
+  summarise(total = n(), .groups = "drop_last") |> 
+  ggplot(aes(x = model, y = total)) +
+  geom_col(aes(fill = model)) +
+  theme_bw()
+
+```
+
+```{r}
+#| label: model-section-combo
+#| include: FALSE
+
+webhook_df |> 
+  group_by(section, model) |> 
+  summarise(total = n(), .groups = "drop_last") |> 
+  mutate(combo = str_c(section, "_", model)) |> 
+  ggplot(aes(x = combo, y = total)) +
+  geom_col(aes(fill = combo)) +
+  theme_bw() +
+  theme(axis.text.x = element_blank())
+
+```
+
+
+
+
