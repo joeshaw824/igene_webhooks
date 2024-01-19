@@ -20,7 +20,9 @@ library(here)
 #| label: read-data
 #| echo: FALSE
 
-all_files <- list.files(path = here::here("data/"),
+webhook_day <- "18-01-24"
+
+all_files <- list.files(path = here::here(str_c("data/", webhook_day)),
                         pattern = "*.txt",
                         full.names = TRUE)
 
@@ -71,8 +73,6 @@ webhook_df <- all_files |>
 ```
 ## Sample IDs
 
-After extracting the sample ID from each file, we can look at the frequency of files per sample.
-
 This analysis looks at **`r length(all_files)`** webhook files.
 
 ```{r}
@@ -88,20 +88,21 @@ ggplot(file_sample_summary, aes(x = files_per_sample, y = )) +
   theme_bw() +
   labs(x = "Number of files per sample",
        y = "Number of samples",
-       title = "The majority of samples have only 1 file generated")
+       title = "Files generated per sample",
+       subtitle = str_c("Data from ", webhook_day))
 
 ```
 
 {{< pagebreak >}}
 
-Here's an example of the log for a sample with 12 files. 
+There is a similar pattern to the previous data for 05/01/2024, but 1 sample has 30 files associated with it (see below).
 
 ```{r}
 #| label: big-hitter
 #| echo: FALSE
 
 big_hitter <- webhook_df |> 
-  filter(referral_id == 449772) |>
+  filter(referral_id == 458683) |>
   arrange(date) |>  
   select(-c(model, filename)) |>  
   relocate(referral_id)
@@ -112,9 +113,7 @@ knitr::kable(big_hitter)
 
 {{< pagebreak >}}
 
-## Model
-
-I have also extracted the "model" section from the file, which appears to have 3 different values.
+Here is the breakdown by the "model" section of the string, for the same data.
 
 ```{r}
 #| label: models
